@@ -17,8 +17,11 @@ import java.util.List;
 
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ITreeContentProvider;
+import org.eclipse.jface.viewers.StyledCellLabelProvider;
+import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
@@ -26,28 +29,28 @@ import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 public class PropertyContentOutlinePage extends ContentOutlinePage {
 	private List<Object> list = new ArrayList<Object>();
 	private List<Property> currentList = new ArrayList<Property>();
-		
+
 	@Override
 	public void createControl(Composite parent) {
 		super.createControl(parent);
 		TreeViewer viewer = getTreeViewer();
-		viewer.setLabelProvider(new ColumnLabelProvider() {
+		viewer.setLabelProvider(new StyledCellLabelProvider() {
 			@Override
-			public String getText(Object element) {
-				if( element instanceof PropertyGroup ) {
-					return ((PropertyGroup) element).name;
-				} else if( element instanceof Property ) {
-					return ((Property) element).name;
-				}
-				return super.getText(element);
-			}
-			
-			@Override
-			public Image getImage(Object element) {
-				if( element instanceof PropertyGroup ) {
-					return Activator.getDefault().getImageRegistry().get(Activator.GROUP_ICON);
-				} else {
-					return Activator.getDefault().getImageRegistry().get(Activator.KEY_ICON);
+			public void update(ViewerCell cell) {
+				Object element = cell.getElement();
+				if (element instanceof PropertyGroup) {
+					cell.setText(((PropertyGroup) element).name);
+					cell.setImage(Activator.getDefault().getImageRegistry().get(Activator.GROUP_ICON));
+				} else if (element instanceof Property) {
+					cell.setImage(Activator.getDefault().getImageRegistry().get(Activator.KEY_ICON));
+					StyledString s = new StyledString(((Property) element).pair.key);
+					String text = ((Property) element).pair.value;
+					if( text.length() > 20 ) {
+						text = text.substring(0,20) + "...";
+					}
+					s.append(" : " + text, StyledString.DECORATIONS_STYLER);
+					cell.setStyleRanges(s.getStyleRanges());
+					cell.setText(s.getString());
 				}
 			}
 		});
@@ -55,56 +58,57 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 		viewer.setInput(list);
 	}
 
-	public void setProperties(String[] properties) {
+	public void setProperties(Pair[] properties) {
 		List<Property> found = new ArrayList<Property>();
 		List<Property> added = new ArrayList<Property>();
-		for (String property : properties) {
+		for (Pair property : properties) {
 			boolean isFound = false;
 			Iterator<Property> it = currentList.iterator();
 			while (it.hasNext()) {
 				Property p = it.next();
-				if (p.name.equals(property)) {
+				if (p.pair.key.equals(property)) {
 					isFound = true;
 					found.add(p);
 					it.remove();
 				}
 			}
-			if( ! isFound ) {
+			if (!isFound) {
 				added.add(new Property(property));
 			}
 		}
-		
+
 		// These are removed
-		for( Property p : currentList ) {
-			if( p.parent != null ) {
+		for (Property p : currentList) {
+			if (p.parent != null) {
 				p.parent.items.remove(p);
 				p.parent = null;
 			} else {
 				list.remove(p);
 			}
 		}
-		
+
 		currentList.clear();
 		currentList.addAll(found);
-		
-		for( Property p : added ) {
-			List<String> parts = new ArrayList<String>(Arrays.asList(p.name.split("_")));
-			if( parts.size() > 1 ) {
+
+		for (Property p : added) {
+			List<String> parts = new ArrayList<String>(Arrays.asList(p.pair.key
+					.split("_")));
+			if (parts.size() > 1) {
 				PropertyGroup group = getGroup(list, parts);
-				if( parts.size() > 1 ) {
+				if (parts.size() > 1) {
 					PropertyGroup tmp = group;
 					PropertyGroup root = null;
-					for( int i = 0; i < parts.size() - 1; i++ ) {
+					for (int i = 0; i < parts.size() - 1; i++) {
 						tmp = new PropertyGroup(tmp, parts.get(i));
-						if( i == 0 ) {
-							root = tmp;	
+						if (i == 0) {
+							root = tmp;
 						}
 					}
-					
+
 					p.parent = tmp;
 					p.parent.items.add(p);
-					
-					if( group == null ) {
+
+					if (group == null) {
 						list.add(root);
 					}
 				} else {
@@ -116,38 +120,39 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 			}
 			currentList.add(p);
 		}
-		
+
 		removeEmptyGroups(list);
-		
-		if( getTreeViewer() != null ) {
-			getTreeViewer().refresh();	
+
+		if (getTreeViewer() != null) {
+			getTreeViewer().refresh();
 		}
-		
+
 	}
-	
+
 	private void removeEmptyGroups(List<?> list) {
 		Iterator<?> it = list.iterator();
-		while( it.hasNext() ) {
+		while (it.hasNext()) {
 			Object o = it.next();
-			if( o instanceof PropertyGroup ) {
+			if (o instanceof PropertyGroup) {
 				removeEmptyGroups(((PropertyGroup) o).groups);
-				if( ((PropertyGroup) o).groups.size() == 0 && ((PropertyGroup) o).items.size() == 0 ) {
+				if (((PropertyGroup) o).groups.size() == 0
+						&& ((PropertyGroup) o).items.size() == 0) {
 					it.remove();
 				}
 			}
 		}
 	}
-	
-	private PropertyGroup getGroup(List<?> list , List<String> parts) {
+
+	private PropertyGroup getGroup(List<?> list, List<String> parts) {
 		PropertyGroup group = null;
-		for( Object o : list ) {
-			if( o instanceof PropertyGroup ) {
-				if( ((PropertyGroup) o).name.equals(parts.get(0)) ) {
+		for (Object o : list) {
+			if (o instanceof PropertyGroup) {
+				if (((PropertyGroup) o).name.equals(parts.get(0))) {
 					parts.remove(0);
 					group = (PropertyGroup) o;
-					if( parts.size() > 1 ) {
-						PropertyGroup tmp = getGroup(group.groups,parts);
-						if( tmp != null ) {
+					if (parts.size() > 1) {
+						PropertyGroup tmp = getGroup(group.groups, parts);
+						if (tmp != null) {
 							return tmp;
 						}
 					}
@@ -188,7 +193,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 				Object[] rv = new Object[groups.length + items.length];
 				System.arraycopy(groups, 0, rv, 0, groups.length);
 				System.arraycopy(items, 0, rv, groups.length, items.length);
-				
+
 				return rv;
 			}
 			return new Object[0];
@@ -213,7 +218,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 
 	}
 
-	static class PropertyGroup {
+	public static class PropertyGroup {
 		private PropertyGroup parent;
 		public String name;
 		private List<PropertyGroup> groups = new ArrayList<PropertyContentOutlinePage.PropertyGroup>();
@@ -225,7 +230,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 
 		public PropertyGroup(PropertyGroup parent, String name) {
 			this.parent = parent;
-			if( parent != null ) {
+			if (parent != null) {
 				parent.groups.add(this);
 			}
 			this.name = name;
@@ -233,92 +238,102 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 
 		@Override
 		public String toString() {
-			return super.toString() + "#" +name;
-		}
-	}
-
-	static class Property {
-		private PropertyGroup parent;
-		private String name;
-
-		public Property(String name) {
-			this(null, name);
-		}
-
-		public Property(PropertyGroup parent, String name) {
-			this.parent = parent;
-			this.name = name;
-		}
-		
-		@Override
-		public String toString() {
 			return super.toString() + "#" + name;
 		}
 	}
-	
-//	public static void main(String[] args) {
-//		Display d = new Display();
-//		final Shell s = new Shell(d);
-//		s.setLayout(new FillLayout());
-//		final PropertyContentOutlinePage page = new PropertyContentOutlinePage();
-//		page.createControl(s);
-//		
-//		final String[][] vals = new String[][] {
-//				{
-//					"ClassA_PropertyA",
-//					"ClassB_PropertyB",
-//					"ClassC_PropertyC",
-//					"ClassD_InnerA_PropertyA"
-//				},
-//				{
-//					"ClassA_PropertyA",
-//					"ClassA_PropertyB",
-//					"ClassB_PropertyB",
-//					"ClassC_PropertyC",
-//					"ClassC_InnerC_PropertyC",
-//					"ClassD_InnerA_PropertyA",
-//					"ClassD_InnerA_PropertyB"
-//				},
-//				{
-//					"ClassA_PropertyA",
-//					"ClassB_PropertyB",
-//					"ClassC_PropertyC",
-//					"ClassD_InnerA_PropertyA"
-//				}
-//		};
-//		
-//		Thread t = new Thread() {
-//			@Override
-//			public void run() {
-//				for( String[] props : vals ) {
-//					final String[] in = props;
-//					s.getDisplay().syncExec(new Runnable() {
-//						public void run() {
-//							page.setProperties(in);
-//							page.getTreeViewer().expandAll();
-//						}
-//					});
-//					try {
-//						Thread.sleep(3000);
-//					} catch (InterruptedException e) {
-//						// TODO Auto-generated catch block
-//						e.printStackTrace();
-//					}
-//					
-//				}
-//			}
-//		};
-//		t.start();
-//		
-//		
-//		
-//		
-//		s.open();
-//		
-//		while( ! s.isDisposed() ) {
-//			if( ! d.readAndDispatch() ) {
-//				d.sleep();
-//			}
-//		}
-//	}
+
+	public static class Property {
+		private PropertyGroup parent;
+		public Pair pair;
+
+		public Property(Pair pair) {
+			this(null, pair);
+		}
+
+		public Property(PropertyGroup parent, Pair pair) {
+			this.parent = parent;
+			this.pair = pair;
+		}
+
+		@Override
+		public String toString() {
+			return super.toString() + "#" + pair.key + " / " + pair.value;
+		}
+	}
+
+	public static class Pair {
+		public final String key;
+		public final String value;
+
+		public Pair(String key, String value) {
+			this.key = key;
+			this.value = value;
+		}
+	}
+
+	// public static void main(String[] args) {
+	// Display d = new Display();
+	// final Shell s = new Shell(d);
+	// s.setLayout(new FillLayout());
+	// final PropertyContentOutlinePage page = new PropertyContentOutlinePage();
+	// page.createControl(s);
+	//
+	// final String[][] vals = new String[][] {
+	// {
+	// "ClassA_PropertyA",
+	// "ClassB_PropertyB",
+	// "ClassC_PropertyC",
+	// "ClassD_InnerA_PropertyA"
+	// },
+	// {
+	// "ClassA_PropertyA",
+	// "ClassA_PropertyB",
+	// "ClassB_PropertyB",
+	// "ClassC_PropertyC",
+	// "ClassC_InnerC_PropertyC",
+	// "ClassD_InnerA_PropertyA",
+	// "ClassD_InnerA_PropertyB"
+	// },
+	// {
+	// "ClassA_PropertyA",
+	// "ClassB_PropertyB",
+	// "ClassC_PropertyC",
+	// "ClassD_InnerA_PropertyA"
+	// }
+	// };
+	//
+	// Thread t = new Thread() {
+	// @Override
+	// public void run() {
+	// for( String[] props : vals ) {
+	// final String[] in = props;
+	// s.getDisplay().syncExec(new Runnable() {
+	// public void run() {
+	// page.setProperties(in);
+	// page.getTreeViewer().expandAll();
+	// }
+	// });
+	// try {
+	// Thread.sleep(3000);
+	// } catch (InterruptedException e) {
+	// // TODO Auto-generated catch block
+	// e.printStackTrace();
+	// }
+	//
+	// }
+	// }
+	// };
+	// t.start();
+	//
+	//
+	//
+	//
+	// s.open();
+	//
+	// while( ! s.isDisposed() ) {
+	// if( ! d.readAndDispatch() ) {
+	// d.sleep();
+	// }
+	// }
+	// }
 }
