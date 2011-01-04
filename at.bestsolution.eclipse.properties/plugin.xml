@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="at.bestsolution.eclipse.properties.ExtendedPropertiesFileEditor"
+            default="false"
+            extensions="properties"
+            icon="icons/file_obj.gif"
+            id="at.bestsolution.eclipse.properties.editor"
+            name="Properties File Editor with Outline">
+      </editor>
+   </extension>
+
+</plugin>
