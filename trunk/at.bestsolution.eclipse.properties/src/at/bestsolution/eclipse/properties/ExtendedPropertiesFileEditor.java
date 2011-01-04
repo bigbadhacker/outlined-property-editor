@@ -22,7 +22,6 @@ import org.eclipse.jface.text.DocumentEvent;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.IDocumentListener;
 import org.eclipse.jface.text.IRegion;
-import org.eclipse.jface.text.TextSelection;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
@@ -77,11 +76,13 @@ public class ExtendedPropertiesFileEditor extends PropertiesFileEditor {
 							Object o = ((IStructuredSelection) event
 									.getSelection()).getFirstElement();
 							String searchKey = null;
-
+							int selectionLength = 0;
+							
 							if (o instanceof PropertyGroup) {
 								searchKey = ((PropertyGroup) o).name;
 							} else if (o instanceof Property) {
 								searchKey = ((Property) o).pair.key;
+								selectionLength = ((Property) o).pair.value.length();
 							}
 
 							if (searchKey == null) {
@@ -99,9 +100,8 @@ public class ExtendedPropertiesFileEditor extends PropertiesFileEditor {
 									if (line.startsWith(searchKey)) {
 										selectAndReveal(
 												r.getOffset()
-														+ line.indexOf('=') + 1,
-												r.getLength()
-														- line.indexOf('=') - 1);
+														+ r.getLength() - selectionLength,
+												selectionLength);
 										break;
 									}
 								}

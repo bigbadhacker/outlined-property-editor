@@ -15,6 +15,11 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+import org.eclipse.jface.action.Action;
+import org.eclipse.jface.action.IAction;
+import org.eclipse.jface.action.IMenuManager;
+import org.eclipse.jface.action.IStatusLineManager;
+import org.eclipse.jface.action.IToolBarManager;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.StyledCellLabelProvider;
@@ -22,7 +27,7 @@ import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
-import org.eclipse.swt.graphics.Image;
+import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 
@@ -30,6 +35,47 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 	private List<Object> list = new ArrayList<Object>();
 	private List<Property> currentList = new ArrayList<Property>();
 
+	@Override
+	public void makeContributions(IMenuManager menuManager,
+			IToolBarManager toolBarManager, IStatusLineManager statusLineManager) {
+		super.makeContributions(menuManager, toolBarManager, statusLineManager);
+		Action a = new Action("",IAction.AS_CHECK_BOX) {
+			@Override
+			public void run() {
+				if( isChecked() ) {
+					getTreeViewer().setComparator(new ViewerComparator() {
+						@Override
+						public int compare(Viewer viewer, Object e1, Object e2) {
+							if( e1 instanceof PropertyGroup && e2 instanceof PropertyGroup ) {
+								return ((PropertyGroup)e1).name.compareTo(((PropertyGroup)e2).name);
+							} else if( e1 instanceof Property && e2 instanceof Property ) {
+								return ((Property)e1).pair.key.compareTo(((Property)e2).pair.key);
+							} else if( e1 instanceof Property ) {
+								return -1;
+							} else if( e2 instanceof Property ) {
+								return -1;
+							}
+							return super.compare(viewer, e1, e2);
+						}
+					});
+				} else {
+					getTreeViewer().setComparator(null);
+				}
+			}
+		};
+		a.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.ALPHASORT_ICON));
+		toolBarManager.add(a);
+		
+		a = new Action("",IAction.AS_PUSH_BUTTON) {
+			@Override
+			public void run() {
+				getTreeViewer().collapseAll();
+			}
+		};
+		a.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.COLLAPSE_ICON));
+		toolBarManager.add(a);
+	}
+	
 	@Override
 	public void createControl(Composite parent) {
 		super.createControl(parent);
@@ -41,6 +87,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 				if (element instanceof PropertyGroup) {
 					cell.setText(((PropertyGroup) element).name);
 					cell.setImage(Activator.getDefault().getImageRegistry().get(Activator.GROUP_ICON));
+					cell.setStyleRanges(null);
 				} else if (element instanceof Property) {
 					cell.setImage(Activator.getDefault().getImageRegistry().get(Activator.KEY_ICON));
 					StyledString s = new StyledString(((Property) element).pair.key);
@@ -52,6 +99,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 					cell.setStyleRanges(s.getStyleRanges());
 					cell.setText(s.getString());
 				}
+				super.update(cell);
 			}
 		});
 		viewer.setContentProvider(new ContentProvider());

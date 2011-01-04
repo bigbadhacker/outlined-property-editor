@@ -29,6 +29,8 @@ public class Activator extends AbstractUIPlugin {
 	
 	public static String GROUP_ICON = "GROUP_ICON";
 	public static String KEY_ICON = "KEY_ICON";
+	public static String ALPHASORT_ICON = "ALPHASORT_ICON";
+	public static String COLLAPSE_ICON = "COLLAPSE_ICON";
 
 	
 	/**
@@ -46,6 +48,8 @@ public class Activator extends AbstractUIPlugin {
 		plugin = this;
 		getImageRegistry().put(GROUP_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/ftr_jar_obj.gif")));
 		getImageRegistry().put(KEY_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/default_co.gif")));
+		getImageRegistry().put(ALPHASORT_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/alphab_sort_co.gif")));
+		getImageRegistry().put(COLLAPSE_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/collapseall.gif")));
 	}
 
 	/*
