@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <site>
-   <feature url="features/at.bestsolution.eclipse.properties.feature_1.0.0.201101050019.jar" id="at.bestsolution.eclipse.properties.feature" version="1.0.0.201101050019">
+   <feature url="features/at.bestsolution.eclipse.properties.feature_1.0.0.201101051555.jar" id="at.bestsolution.eclipse.properties.feature" version="1.0.0.201101051555">
       <category name="property"/>
    </feature>
    <category-def name="property" label="Property Support"/>
