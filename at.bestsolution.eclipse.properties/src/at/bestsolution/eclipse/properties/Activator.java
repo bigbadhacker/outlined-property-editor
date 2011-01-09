@@ -31,6 +31,7 @@ public class Activator extends AbstractUIPlugin {
 	public static String KEY_ICON = "KEY_ICON";
 	public static String ALPHASORT_ICON = "ALPHASORT_ICON";
 	public static String COLLAPSE_ICON = "COLLAPSE_ICON";
+	public static String HIERACHICAL_ICON = "HIERACHICAL_ICON";
 
 	
 	/**
@@ -50,6 +51,7 @@ public class Activator extends AbstractUIPlugin {
 		getImageRegistry().put(KEY_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/default_co.gif")));
 		getImageRegistry().put(ALPHASORT_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/alphab_sort_co.gif")));
 		getImageRegistry().put(COLLAPSE_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/collapseall.gif")));
+		getImageRegistry().put(HIERACHICAL_ICON, ImageDescriptor.createFromURL(new URL("platform:/plugin/"+PLUGIN_ID+"/icons/hierarchicalLayout.gif")));
 	}
 
 	/*
