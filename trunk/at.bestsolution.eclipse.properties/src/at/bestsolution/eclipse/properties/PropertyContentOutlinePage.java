@@ -10,20 +10,29 @@
  ******************************************************************************/
 package at.bestsolution.eclipse.properties;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Properties;
+import java.util.Map.Entry;
 
 import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences.IPreferenceChangeListener;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences.PreferenceChangeEvent;
+import org.eclipse.jdt.internal.ui.propertiesfileeditor.PropertiesFileEditor;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.action.IMenuManager;
 import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.action.IToolBarManager;
+import org.eclipse.jface.text.DocumentEvent;
+import org.eclipse.jface.text.IDocument;
+import org.eclipse.jface.text.IDocumentListener;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.StyledCellLabelProvider;
@@ -33,9 +42,13 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.ui.IEditorInput;
+import org.eclipse.ui.texteditor.IDocumentProvider;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 import org.osgi.service.prefs.BackingStoreException;
 
+
+@SuppressWarnings("restriction")
 public class PropertyContentOutlinePage extends ContentOutlinePage {
 	private List<Object> hierarchicalStructure = new ArrayList<Object>();
 	private List<Property> flatStructure = new ArrayList<Property>();
@@ -50,7 +63,37 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 	
 	private String groupRegexp = "_|\\.|/";
 	
-	public PropertyContentOutlinePage() {
+	public PropertyContentOutlinePage(PropertiesFileEditor editor) {
+		final IEditorInput input = editor.getEditorInput();
+		final IDocumentProvider provider = editor.getDocumentProvider();
+		IDocument document = provider.getDocument(input);
+		document.addDocumentListener(new IDocumentListener() {
+
+			public void documentChanged(DocumentEvent event) {
+				try {
+					setProperties(getPairs(event.fDocument));
+				} catch (UnsupportedEncodingException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+
+			public void documentAboutToBeChanged(DocumentEvent event) {
+			}
+		});
+		try {
+			properties = getPairs(document);
+		} catch (UnsupportedEncodingException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		
 		sortAction = new Action("",IAction.AS_CHECK_BOX) {
 			@Override
 			public void run() {
@@ -94,6 +137,17 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 			}
 		});
 	}
+	
+	public Pair[] getPairs(IDocument document) throws UnsupportedEncodingException, IOException {
+		Properties p = new Properties();
+		p.load(new ByteArrayInputStream(document.get().getBytes("UTF-8")));
+		Pair[] pairs = new Pair[p.entrySet().size()];
+		int i = 0;
+		for (Entry<Object, Object> e : p.entrySet()) {
+			pairs[i++] = new Pair((String) e.getKey(), (String) e.getValue());
+		}
+		return pairs;
+	}
 
 	@Override
 	public void makeContributions(IMenuManager menuManager,
@@ -105,7 +159,12 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 		Action a = new Action("",IAction.AS_PUSH_BUTTON) {
 			@Override
 			public void run() {
-				getTreeViewer().collapseAll();
+				try {
+					getTreeViewer().getTree().setRedraw(false);
+					getTreeViewer().collapseAll();					
+				} finally {
+					getTreeViewer().getTree().setRedraw(true);	
+				}
 			}
 		};
 		a.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.COLLAPSE_ICON));
