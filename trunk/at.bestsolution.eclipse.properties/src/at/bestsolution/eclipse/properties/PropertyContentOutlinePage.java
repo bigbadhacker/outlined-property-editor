@@ -30,10 +30,14 @@ import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.action.IMenuManager;
 import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.action.IToolBarManager;
+import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.DocumentEvent;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.IDocumentListener;
+import org.eclipse.jface.text.IRegion;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.StyledCellLabelProvider;
 import org.eclipse.jface.viewers.StyledString;
@@ -47,26 +51,29 @@ import org.eclipse.ui.texteditor.IDocumentProvider;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
 import org.osgi.service.prefs.BackingStoreException;
 
-
 @SuppressWarnings("restriction")
 public class PropertyContentOutlinePage extends ContentOutlinePage {
 	private List<Object> hierarchicalStructure = new ArrayList<Object>();
 	private List<Property> flatStructure = new ArrayList<Property>();
 	private Pair[] properties = new Pair[0];
-	private IEclipsePreferences preferences = new InstanceScope().getNode("propertiesoutline");
+	private IEclipsePreferences preferences = new InstanceScope()
+			.getNode("propertiesoutline");
 
 	private static final String PREF_SORTED = "sorted";
 	private static final String PREF_HIERARCHICAL = "hierarchical";
-	
+
 	private Action sortAction;
 	private Action hierarchicalAction;
-	
+
 	private String groupRegexp = "_|\\.|/";
-	
+	private IDocument document;
+	private PropertiesFileEditor editor;
+
 	public PropertyContentOutlinePage(PropertiesFileEditor editor) {
 		final IEditorInput input = editor.getEditorInput();
 		final IDocumentProvider provider = editor.getDocumentProvider();
-		IDocument document = provider.getDocument(input);
+		this.editor = editor;
+		document = provider.getDocument(input);
 		document.addDocumentListener(new IDocumentListener() {
 
 			public void documentChanged(DocumentEvent event) {
@@ -93,8 +100,8 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-		
-		sortAction = new Action("",IAction.AS_CHECK_BOX) {
+
+		sortAction = new Action("", IAction.AS_CHECK_BOX) {
 			@Override
 			public void run() {
 				preferences.putBoolean(PREF_SORTED, isChecked());
@@ -105,10 +112,11 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 				}
 			}
 		};
-		sortAction.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.ALPHASORT_ICON));
+		sortAction.setImageDescriptor(Activator.getDefault().getImageRegistry()
+				.getDescriptor(Activator.ALPHASORT_ICON));
 		sortAction.setChecked(isSorted());
-		
-		hierarchicalAction = new Action("",IAction.AS_CHECK_BOX) {
+
+		hierarchicalAction = new Action("", IAction.AS_CHECK_BOX) {
 			@Override
 			public void run() {
 				preferences.putBoolean(PREF_HIERARCHICAL, isChecked());
@@ -119,26 +127,29 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 				}
 			}
 		};
-		hierarchicalAction.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.HIERACHICAL_ICON));
+		hierarchicalAction.setImageDescriptor(Activator.getDefault()
+				.getImageRegistry().getDescriptor(Activator.HIERACHICAL_ICON));
 		hierarchicalAction.setChecked(isHierarchical());
-		
-		preferences.addPreferenceChangeListener(new IPreferenceChangeListener() {
-			
-			public void preferenceChange(PreferenceChangeEvent event) {
-				if( event.getKey().equals(PREF_SORTED) ) {
-					boolean val = isSorted();
-					setSorted(val);
-					sortAction.setChecked(val);
-				} else if( event.getKey().equals(PREF_HIERARCHICAL) ) {
-					boolean val = isHierarchical();
-					setHierarchical(val);
-					hierarchicalAction.setChecked(val);
-				}
-			}
-		});
+
+		preferences
+				.addPreferenceChangeListener(new IPreferenceChangeListener() {
+
+					public void preferenceChange(PreferenceChangeEvent event) {
+						if (event.getKey().equals(PREF_SORTED)) {
+							boolean val = isSorted();
+							setSorted(val);
+							sortAction.setChecked(val);
+						} else if (event.getKey().equals(PREF_HIERARCHICAL)) {
+							boolean val = isHierarchical();
+							setHierarchical(val);
+							hierarchicalAction.setChecked(val);
+						}
+					}
+				});
 	}
-	
-	public Pair[] getPairs(IDocument document) throws UnsupportedEncodingException, IOException {
+
+	public Pair[] getPairs(IDocument document)
+			throws UnsupportedEncodingException, IOException {
 		Properties p = new Properties();
 		p.load(new ByteArrayInputStream(document.get().getBytes("UTF-8")));
 		Pair[] pairs = new Pair[p.entrySet().size()];
@@ -155,37 +166,77 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 		super.makeContributions(menuManager, toolBarManager, statusLineManager);
 		toolBarManager.add(hierarchicalAction);
 		toolBarManager.add(sortAction);
-		
-		Action a = new Action("",IAction.AS_PUSH_BUTTON) {
+
+		Action a = new Action("", IAction.AS_PUSH_BUTTON) {
 			@Override
 			public void run() {
 				try {
 					getTreeViewer().getTree().setRedraw(false);
-					getTreeViewer().collapseAll();					
+					getTreeViewer().collapseAll();
 				} finally {
-					getTreeViewer().getTree().setRedraw(true);	
+					getTreeViewer().getTree().setRedraw(true);
 				}
 			}
 		};
-		a.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.COLLAPSE_ICON));
+		a.setImageDescriptor(Activator.getDefault().getImageRegistry()
+				.getDescriptor(Activator.COLLAPSE_ICON));
 		toolBarManager.add(a);
 	}
-	
+
+	@Override
+	protected void fireSelectionChanged(ISelection selection) {
+		super.fireSelectionChanged(selection);
+		Object o = ((IStructuredSelection) selection).getFirstElement();
+		String searchKey = null;
+		int selectionLength = 0;
+
+		if (o instanceof PropertyGroup) {
+			searchKey = ((PropertyGroup) o).name;
+		} else if (o instanceof Property) {
+			searchKey = ((Property) o).pair.key;
+			selectionLength = ((Property) o).pair.value.length();
+		}
+
+		if (searchKey == null) {
+			return;
+		}
+
+		int lines = document.getNumberOfLines();
+		try {
+			for (int i = 0; i < lines; i++) {
+				IRegion r = document.getLineInformation(i);
+				String line = document.get(r.getOffset(), r.getLength());
+				if (line.startsWith(searchKey)) {
+					editor.selectAndReveal(r.getOffset() + r.getLength()
+							- selectionLength, selectionLength);
+					break;
+				}
+			}
+		} catch (BadLocationException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
 	private void setSorted(boolean sorted) {
-		//FIXME We should delay until visible!
-		if( sorted ) {
+		// FIXME We should delay until visible!
+		if (sorted) {
 			getTreeViewer().setComparator(new ViewerComparator() {
 				@Override
 				public int compare(Viewer viewer, Object e1, Object e2) {
-					if( e1 instanceof PropertyGroup && e2 instanceof PropertyGroup ) {
-						return ((PropertyGroup)e1).name.compareTo(((PropertyGroup)e2).name);
-					} else if( e1 instanceof Property && e2 instanceof Property ) {
-						String k1 = ((Property)e1).pair.key.replaceAll(groupRegexp, "");
-						String k2 = ((Property)e2).pair.key.replaceAll(groupRegexp, "");
+					if (e1 instanceof PropertyGroup
+							&& e2 instanceof PropertyGroup) {
+						return ((PropertyGroup) e1).name
+								.compareTo(((PropertyGroup) e2).name);
+					} else if (e1 instanceof Property && e2 instanceof Property) {
+						String k1 = ((Property) e1).pair.key.replaceAll(
+								groupRegexp, "");
+						String k2 = ((Property) e2).pair.key.replaceAll(
+								groupRegexp, "");
 						return k1.compareTo(k2);
-					} else if( e1 instanceof Property ) {
+					} else if (e1 instanceof Property) {
 						return -1;
-					} else if( e2 instanceof Property ) {
+					} else if (e2 instanceof Property) {
 						return -1;
 					}
 					return super.compare(viewer, e1, e2);
@@ -195,16 +246,16 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 			getTreeViewer().setComparator(null);
 		}
 	}
-	
+
 	protected void setHierarchical(boolean val) {
-		//FIXME We should delay until visible!
-		if( val ) {
+		// FIXME We should delay until visible!
+		if (val) {
 			getTreeViewer().setInput(hierarchicalStructure);
 		} else {
 			getTreeViewer().setInput(flatStructure);
 		}
 	}
-	
+
 	private void createHierarchicalStructure() {
 		List<Property> found = new ArrayList<Property>();
 		List<Property> added = new ArrayList<Property>();
@@ -214,7 +265,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 			while (it.hasNext()) {
 				Property p = it.next();
 				if (p.pair.key.equals(property.key)) {
-					p.pair=property;
+					p.pair = property;
 					isFound = true;
 					found.add(p);
 					it.remove();
@@ -271,7 +322,7 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 
 		removeEmptyGroups(hierarchicalStructure);
 	}
-	
+
 	@Override
 	public void createControl(Composite parent) {
 		super.createControl(parent);
@@ -282,14 +333,17 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 				Object element = cell.getElement();
 				if (element instanceof PropertyGroup) {
 					cell.setText(((PropertyGroup) element).name);
-					cell.setImage(Activator.getDefault().getImageRegistry().get(Activator.GROUP_ICON));
+					cell.setImage(Activator.getDefault().getImageRegistry()
+							.get(Activator.GROUP_ICON));
 					cell.setStyleRanges(null);
 				} else if (element instanceof Property) {
-					cell.setImage(Activator.getDefault().getImageRegistry().get(Activator.KEY_ICON));
-					StyledString s = new StyledString(((Property) element).pair.key);
+					cell.setImage(Activator.getDefault().getImageRegistry()
+							.get(Activator.KEY_ICON));
+					StyledString s = new StyledString(
+							((Property) element).pair.key);
 					String text = ((Property) element).pair.value;
-					if( text.length() > 20 ) {
-						text = text.substring(0,20) + "...";
+					if (text.length() > 20) {
+						text = text.substring(0, 20) + "...";
 					}
 					s.append(" : " + text, StyledString.DECORATIONS_STYLER);
 					cell.setStyleRanges(s.getStyleRanges());
@@ -298,17 +352,17 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 				super.update(cell);
 			}
 		});
-		
+
 		viewer.setContentProvider(new HierarchicalContentProvider());
-				
-		if( isSorted() ) {
+
+		if (isSorted()) {
 			setSorted(true);
 		}
-		
+
 		createHierarchicalStructure();
-		
-		if( isHierarchical() ) {
-			viewer.setInput(hierarchicalStructure);			
+
+		if (isHierarchical()) {
+			viewer.setInput(hierarchicalStructure);
 		} else {
 			viewer.setInput(flatStructure);
 		}
@@ -325,11 +379,11 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 	private boolean isSorted() {
 		return preferences.getBoolean(PREF_SORTED, true);
 	}
-	
+
 	private boolean isHierarchical() {
 		return preferences.getBoolean(PREF_HIERARCHICAL, false);
 	}
-	
+
 	private void removeEmptyGroups(List<?> list) {
 		Iterator<?> it = list.iterator();
 		while (it.hasNext()) {
