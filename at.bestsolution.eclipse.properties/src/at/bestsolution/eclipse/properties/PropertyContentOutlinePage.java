@@ -15,6 +15,10 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences.IPreferenceChangeListener;
+import org.eclipse.core.runtime.preferences.InstanceScope;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences.PreferenceChangeEvent;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.action.IMenuManager;
@@ -30,43 +34,51 @@ import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.views.contentoutline.ContentOutlinePage;
+import org.osgi.service.prefs.BackingStoreException;
 
 public class PropertyContentOutlinePage extends ContentOutlinePage {
 	private List<Object> list = new ArrayList<Object>();
 	private List<Property> currentList = new ArrayList<Property>();
+	private IEclipsePreferences preferences = new InstanceScope().getNode("propertiesoutline");
 
+	private static final String PREF_SORTED = "sorted";
+	
+	private Action sortAction;
+	
+	public PropertyContentOutlinePage() {
+		sortAction = new Action("",IAction.AS_CHECK_BOX) {
+			@Override
+			public void run() {
+				preferences.putBoolean(PREF_SORTED, isChecked());
+				try {
+					preferences.flush();
+				} catch (BackingStoreException e) {
+					e.printStackTrace();
+				}
+			}
+		};
+		sortAction.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.ALPHASORT_ICON));
+		sortAction.setChecked(preferences.getBoolean(PREF_SORTED, true));
+		
+		preferences.addPreferenceChangeListener(new IPreferenceChangeListener() {
+			
+			public void preferenceChange(PreferenceChangeEvent event) {
+				if( event.getKey().equals(PREF_SORTED) ) {
+					boolean val = preferences.getBoolean(PREF_SORTED, true);
+					setSorted(val);
+					sortAction.setChecked(val);
+				}
+			}
+		});
+	}
+	
 	@Override
 	public void makeContributions(IMenuManager menuManager,
 			IToolBarManager toolBarManager, IStatusLineManager statusLineManager) {
 		super.makeContributions(menuManager, toolBarManager, statusLineManager);
-		Action a = new Action("",IAction.AS_CHECK_BOX) {
-			@Override
-			public void run() {
-				if( isChecked() ) {
-					getTreeViewer().setComparator(new ViewerComparator() {
-						@Override
-						public int compare(Viewer viewer, Object e1, Object e2) {
-							if( e1 instanceof PropertyGroup && e2 instanceof PropertyGroup ) {
-								return ((PropertyGroup)e1).name.compareTo(((PropertyGroup)e2).name);
-							} else if( e1 instanceof Property && e2 instanceof Property ) {
-								return ((Property)e1).pair.key.compareTo(((Property)e2).pair.key);
-							} else if( e1 instanceof Property ) {
-								return -1;
-							} else if( e2 instanceof Property ) {
-								return -1;
-							}
-							return super.compare(viewer, e1, e2);
-						}
-					});
-				} else {
-					getTreeViewer().setComparator(null);
-				}
-			}
-		};
-		a.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.ALPHASORT_ICON));
-		toolBarManager.add(a);
+		toolBarManager.add(sortAction);
 		
-		a = new Action("",IAction.AS_PUSH_BUTTON) {
+		Action a = new Action("",IAction.AS_PUSH_BUTTON) {
 			@Override
 			public void run() {
 				getTreeViewer().collapseAll();
@@ -74,6 +86,29 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 		};
 		a.setImageDescriptor(Activator.getDefault().getImageRegistry().getDescriptor(Activator.COLLAPSE_ICON));
 		toolBarManager.add(a);
+	}
+	
+	private void setSorted(boolean sorted) {
+		//FIXME We should delay until visible!
+		if( sorted ) {
+			getTreeViewer().setComparator(new ViewerComparator() {
+				@Override
+				public int compare(Viewer viewer, Object e1, Object e2) {
+					if( e1 instanceof PropertyGroup && e2 instanceof PropertyGroup ) {
+						return ((PropertyGroup)e1).name.compareTo(((PropertyGroup)e2).name);
+					} else if( e1 instanceof Property && e2 instanceof Property ) {
+						return ((Property)e1).pair.key.compareTo(((Property)e2).pair.key);
+					} else if( e1 instanceof Property ) {
+						return -1;
+					} else if( e2 instanceof Property ) {
+						return -1;
+					}
+					return super.compare(viewer, e1, e2);
+				}
+			});
+		} else {
+			getTreeViewer().setComparator(null);
+		}
 	}
 	
 	@Override
@@ -103,6 +138,9 @@ public class PropertyContentOutlinePage extends ContentOutlinePage {
 			}
 		});
 		viewer.setContentProvider(new ContentProvider());
+		if( preferences.getBoolean(PREF_SORTED, true) ) {
+			setSorted(true);
+		}
 		viewer.setInput(list);
 	}
 
