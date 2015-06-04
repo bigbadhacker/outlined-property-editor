@@ -1,0 +1,1 @@
+This plugin provides an improved editor version for property files
